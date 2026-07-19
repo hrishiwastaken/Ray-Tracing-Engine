@@ -1,0 +1,132 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Arc
+import math
+
+
+# Initializing Matplotlib
+fig, ax = plt.subplots(figsize=(8, 8))
+ax.set_aspect("equal")
+ax.set_xlim(0, 20)
+ax.set_ylim(0, 20)
+plt.grid(True, linestyle='--', alpha=0.5)
+
+
+# The mirror object containing all mirror properties
+class Mirror:
+    def __init__(self, centre, radius, aperture):
+        self.centre = np.array(centre, dtype="float")
+        self.radius = radius
+        self.angle = aperture       
+
+        arc = Arc(
+            tuple(self.centre), width=2*self.radius, height=2*self.radius,
+            angle=0, theta1=-self.angle/2, theta2=self.angle/2,
+            linewidth=3, color='black'
+        )
+        ax.add_patch(arc)
+    
+    def normal(self, point) -> np.ndarray:
+        return self.centre - np.array(point, dtype="float") 
+
+# The ray object containing all ray properties and methods
+class Ray:
+    def __init__(self, origin, direction, mirror, bounces=3, color="orange"):
+        self.origin = np.array(origin, dtype=float)
+        self.direction = direction / np.linalg.norm(direction)
+        self.length = 20
+        self.mirror: Mirror = mirror
+        self.bounces = bounces  #---Ray Bounce limit to prevent infinite bouncing
+        self.color = color      #---Ray Colour
+        
+        # Default parametric ray equation
+        self.end = self.origin + self.length * self.direction
+        
+        # Bounce check
+        if self.bounces <= 0:
+            self.draw()
+            return
+
+        # Finding intersections with sphere of mirror 
+        t_intersections = self.nature()
+        
+        # Aperture Check
+        if not t_intersections:
+            self.draw() 
+        else:
+            t_valid = self.parameter(t_intersections)
+            if t_valid is None:
+                self.draw() 
+            else:
+                self.end = self.origin + t_valid * self.direction
+                self.draw()
+                self.draw_reflection() 
+    # Quadratic Solver to find points of intersection
+    def nature(self):
+        f = self.origin[0] - self.mirror.centre[0]
+        g = self.origin[1] - self.mirror.centre[1]
+        
+        Beta = f * self.direction[0] + g * self.direction[1]
+        Delta = f**2 + g**2 - self.mirror.radius**2
+        discriminant = 4 * (Beta**2) - 4 * Delta
+        
+        if discriminant >= 0:
+            t1 = (-2 * Beta + discriminant**0.5) / 2
+            t2 = (-2 * Beta - discriminant**0.5) / 2
+            valid_t = [t for t in (t1, t2) if t > 1e-5] 
+            return sorted(valid_t)
+        return [] 
+    # Aperture Check function by checking parametric co-ordinate of circle range
+    def parameter(self, pts):
+        for pt in pts:
+            intersection_point = self.origin + pt * self.direction
+            r = intersection_point - self.mirror.centre
+            
+            angle_deg = math.degrees(math.atan2(r[1], r[0]))
+            if -self.mirror.angle/2 <= angle_deg <= self.mirror.angle/2:
+                return pt
+        return None
+    # Drawing source rays
+    def draw(self):
+        ax.plot(
+            [self.origin[0], self.end[0]], [self.origin[1], self.end[1]],
+            color=self.color, alpha=0.8, linewidth=1.5
+        )
+    # Drawing Reflected Rays with recursive reflections
+    def draw_reflection(self):
+        incident_dir = self.direction 
+        normal = self.mirror.normal(self.end)
+        normal /= np.linalg.norm(normal)
+        
+        dot = np.dot(incident_dir, normal)
+        reflect_dir = incident_dir - 2 * dot * normal
+        
+        Ray(
+            origin=self.end, 
+            direction=reflect_dir, 
+            mirror=self.mirror, 
+            bounces=self.bounces - 1, 
+            color="blue"
+        )
+# Defining the source object, main light emitter.
+class Source:
+    def __init__(self, origin, mirror: Mirror, rays):
+        self.rays = []
+        self.origin = np.array(origin, dtype=float)
+        self.mirror = mirror
+        n = 360/rays
+        
+        for i in range(rays):
+            a = np.radians(i * n)
+            d = np.array([np.cos(a), np.sin(a)])
+            self.rays.append(Ray(self.origin, d, mirror))
+            
+        ax.scatter(self.origin[0], self.origin[1], color="red", zorder=5, label="Source")
+
+# Initializing Objects
+mirror = Mirror(centre=[10, 10], radius=6, aperture= 90)
+source = Source(origin=[10, 10], mirror=mirror, rays=50)
+
+plt.title("Recursive Ray Tracing")
+plt.legend()
+plt.show()
