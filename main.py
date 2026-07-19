@@ -2,15 +2,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Arc
 import math
-
-
+from typing import List
 # Initializing Matplotlib
 fig, ax = plt.subplots(figsize=(8, 8))
-ax.set_aspect("equal")
-ax.set_xlim(0, 20)
-ax.set_ylim(0, 20)
-plt.grid(True, linestyle='--', alpha=0.5)
 
+# Function to reset and format the axes upon every click
+def setup_axes():
+    ax.set_aspect("equal")
+    ax.set_xlim(0, 20)
+    ax.set_ylim(0, 20)
+    ax.grid(True, linestyle='--', alpha=0.5)
+    ax.set_title("Recursive Ray Tracing (Click anywhere to move the Source)")
 
 # The mirror object containing all mirror properties
 class Mirror:
@@ -21,7 +23,7 @@ class Mirror:
 
         arc = Arc(
             tuple(self.centre), width=2*self.radius, height=2*self.radius,
-            angle=0, theta1=-self.angle/2, theta2=self.angle/2,
+            angle=0, theta1=-self.angle/2,theta2=self.angle/2,
             linewidth=3, color='black'
         )
         ax.add_patch(arc)
@@ -30,8 +32,9 @@ class Mirror:
         return self.centre - np.array(point, dtype="float") 
 
 # The ray object containing all ray properties and methods
+
 class Ray:
-    def __init__(self, origin, direction, mirror, bounces=3, color="orange"):
+    def __init__(self, origin, direction, mirror, bounces=1, color="orange"):
         self.origin = np.array(origin, dtype=float)
         self.direction = direction / np.linalg.norm(direction)
         self.length = 20
@@ -42,10 +45,7 @@ class Ray:
         # Default parametric ray equation
         self.end = self.origin + self.length * self.direction
         
-        # Bounce check
-        if self.bounces <= 0:
-            self.draw()
-            return
+        
 
         # Finding intersections with sphere of mirror 
         t_intersections = self.nature()
@@ -59,8 +59,15 @@ class Ray:
                 self.draw() 
             else:
                 self.end = self.origin + t_valid * self.direction
-                self.draw()
-                self.draw_reflection() 
+                # Bounce check
+                if self.bounces <= 0:
+                    pass
+                else:
+                    self.draw()
+                    self.draw_reflection() 
+                    return
+                
+                
     # Quadratic Solver to find points of intersection
     def nature(self):
         f = self.origin[0] - self.mirror.centre[0]
@@ -76,6 +83,7 @@ class Ray:
             valid_t = [t for t in (t1, t2) if t > 1e-5] 
             return sorted(valid_t)
         return [] 
+        
     # Aperture Check function by checking parametric co-ordinate of circle range
     def parameter(self, pts):
         for pt in pts:
@@ -86,12 +94,20 @@ class Ray:
             if -self.mirror.angle/2 <= angle_deg <= self.mirror.angle/2:
                 return pt
         return None
+        
     # Drawing source rays
     def draw(self):
+        z = 2 if self.color == "blue" else 1
+        l = 2 if self.color == "blue" else 1.5
         ax.plot(
-            [self.origin[0], self.end[0]], [self.origin[1], self.end[1]],
-            color=self.color, alpha=0.8, linewidth=1.5
+            [self.origin[0], self.end[0]],
+            [self.origin[1], self.end[1]],
+            color=self.color,
+            alpha=0.8,
+            linewidth=l,
+            zorder=z
         )
+        
     # Drawing Reflected Rays with recursive reflections
     def draw_reflection(self):
         incident_dir = self.direction 
@@ -108,6 +124,7 @@ class Ray:
             bounces=self.bounces - 1, 
             color="blue"
         )
+        
 # Defining the source object, main light emitter.
 class Source:
     def __init__(self, origin, mirror: Mirror, rays):
@@ -123,10 +140,31 @@ class Source:
             
         ax.scatter(self.origin[0], self.origin[1], color="red", zorder=5, label="Source")
 
-# Initializing Objects
-mirror = Mirror(centre=[10, 10], radius=6, aperture= 90)
-source = Source(origin=[10, 10], mirror=mirror, rays=50)
+# Render function that handles clearing and drawing
+def draw_scene(origin_x, origin_y):
+    ax.cla()       # Clear the current axes to remove old rays
+    setup_axes()   # Re-apply limits, grid, and title
+    
+    mirror = Mirror(centre=[10, 10], radius=6, aperture=160)
+    source = Source(origin=[origin_x, origin_y], mirror=mirror, rays=72)
+        
+    
+    
+    ax.legend(loc="upper right")
+    fig.canvas.draw() # Force matplotlib to update the canvas
 
-plt.title("Recursive Ray Tracing")
-plt.legend()
+# Event handler for mouse clicks
+def on_click(event):
+    # Ensure the click is inside the plot boundaries
+    if event.inaxes is not None:
+        draw_scene(event.xdata, event.ydata)
+    
+
+# Connect the click event to our handler function
+fig.canvas.mpl_connect('button_press_event', on_click)
+
+# Initial draw
+reflections: list[Ray] = np.array([])
+draw_scene(10, 10)
+
 plt.show()
