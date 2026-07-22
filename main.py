@@ -48,25 +48,30 @@ class Ray:
         
 
         # Finding intersections with sphere of mirror 
-        
+        self.points = []
         for mirror in self.mirrors:
             # Aperture Check for each mirrors
             t_intersections = self.nature(mirror)
             if not t_intersections:
-                self.draw() 
+                pass 
             else:
                 t_valid = self.parameter(t_intersections, mirror)
                 if t_valid is None:
-                    self.draw() 
+                    pass
                 else:
-                    self.end = self.origin + t_valid * self.direction
-                    # Bounce check
-                    if self.bounces <= 0:
-                        pass
-                    else:
-                        self.draw()
-                        self.draw_reflection(mirror) 
-                        return
+                    self.points.append((t_valid, mirror))
+        # Bounce check
+        if self.bounces <= 0:
+            pass
+        else:
+            if self.points != []:
+                t, mirror = min(self.points, key=lambda x: x[0])
+                self.end = self.origin + t*self.direction
+                self.draw()
+                self.draw_reflection(mirror) 
+            else:
+                self.draw()
+            return
                 
                 
     # Quadratic Solver to find points of intersection
