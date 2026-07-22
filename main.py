@@ -16,14 +16,24 @@ def setup_axes():
 
 # The mirror object containing all mirror properties
 class Mirror:
-    def __init__(self, centre, radius, aperture):
+    def __init__(self, centre, radius, aperture, facing):
         self.centre = np.array(centre, dtype="float")
         self.radius = radius
-        self.angle = aperture       
-
+        self.angle = aperture    
+        self.facing = facing   
+        self.centre_angle = 0 if self.facing == 1 else 180
+    
+    def draw(self):
+        if self.facing == 1:
+            t1 = -self.angle/2
+            t2 = self.angle/2
+        else:
+            t1 = 180 - self.angle/2
+            t2 = 180 + self.angle/2
+        
         arc = Arc(
             tuple(self.centre), width=2*self.radius, height=2*self.radius,
-            angle=0, theta1=-self.angle/2,theta2=self.angle/2,
+            angle=0, theta1=t1,theta2=t2,
             linewidth=3, color='black'
         )
         ax.add_patch(arc)
@@ -97,7 +107,10 @@ class Ray:
             r = intersection_point - mirror.centre
             
             angle_deg = math.degrees(math.atan2(r[1], r[0]))
-            if -mirror.angle/2 <= angle_deg <= mirror.angle/2:
+            if angle_deg < 0:
+                angle_deg += 360
+
+            if mirror.centre_angle - mirror.angle/2 <= angle_deg <= mirror.centre_angle + mirror.angle/2:
                 return pt
         return None
         
@@ -119,6 +132,8 @@ class Ray:
         incident_dir = self.direction 
         normal = mirror.normal(self.end)
         normal /= np.linalg.norm(normal)
+        if mirror.facing == -1:
+            normal *= -1
         
         dot = np.dot(incident_dir, normal)
         reflect_dir = incident_dir - 2 * dot * normal
@@ -146,28 +161,82 @@ class Source:
             
         ax.scatter(self.origin[0], self.origin[1], color="red", zorder=5, label="Source")
 
+
+# Initializing Default Objects
+mirrors = [
+    Mirror(centre=[10, 10], radius=6, aperture=70, facing=1),
+    Mirror(centre=[5, 5], radius=6, aperture=70, facing=1)
+]
+
+source_pos = np.array([10.0, 10.0])
+
+
 # Render function that handles clearing and drawing
-def draw_scene(origin_x, origin_y):
-    ax.cla()       # Clear the current axes to remove old rays
-    setup_axes()   # Re-apply limits, grid, and title
-    
-    mirrors = [Mirror(centre=[10, 10], radius=6, aperture=70), Mirror(centre=[5, 5], radius=6, aperture=70)]
-    source = Source(origin=[origin_x, origin_y], mirrors=mirrors, rays=6)  
+def draw_scene():
+    ax.cla()
+    setup_axes()
+
+    for mirror in mirrors:
+        mirror.draw()
+
+    Source(
+        origin=source_pos,
+        mirrors=mirrors,
+        rays=18
+    )
+
     ax.legend(loc="upper right")
-    fig.canvas.draw() # Force matplotlib to update the canvas
+    fig.canvas.draw()
 
-# Event handler for mouse clicks
+
+# Mouse Input handler
 def on_click(event):
-    # Ensure the click is inside the plot boundaries
-    if event.inaxes is not None:
-        draw_scene(event.xdata, event.ydata)
-    
+    if event.inaxes is None:
+        return
 
-# Connect the click event to our handler function
-fig.canvas.mpl_connect('button_press_event', on_click)
+    # Assigning Left click for moving source
+    if event.button == 1:
+        source_pos[:] = [event.xdata, event.ydata]
+        draw_scene()
+
+    # Assigning Right Click for placing mirror
+    elif event.button == 3:
+        pole = np.array([event.xdata, event.ydata])
+
+        radius = 6
+
+        # Holding shift to place mirror
+        facing = -1 if event.key == "shift" else 1
+
+        centre = pole - np.array([facing * radius, 0])
+
+        mirrors.append(
+            Mirror(
+                centre=centre,
+                radius=radius,
+                aperture=70,
+                facing=facing
+            )
+        )
+
+        draw_scene()
+
+
+# Keyboard handler
+def on_key(event):
+    if event.key.lower() == "c":
+        if mirrors:
+            mirrors.pop()
+            draw_scene()
+
+
+# Connecting events
+fig.canvas.mpl_connect("button_press_event", on_click)
+fig.canvas.mpl_connect("key_press_event", on_key)
+
 
 # Initial draw
 reflections: list[Ray] = np.array([])
-draw_scene(10, 10)
+draw_scene()
 
 plt.show()
