@@ -12,7 +12,7 @@ def setup_axes():
     ax.set_xlim(0, 20)
     ax.set_ylim(0, 20)
     ax.grid(True, linestyle='--', alpha=0.5)
-    ax.set_title("Recursive Ray Tracing (Click anywhere to move the Source)")
+    ax.set_title("Recursive Ray Tracing \n Left Click to move Source, Right Click to place mirror, Shift + Right Click to place inverted mirror, C to undo mirror")
 
 # The mirror object containing all mirror properties
 class Mirror:
@@ -39,7 +39,7 @@ class Mirror:
         ax.add_patch(arc)
     
     def normal(self, point) -> np.ndarray:
-        return self.centre - np.array(point, dtype="float") 
+        return self.centre - np.array(point, dtype="float")   # Uses vectoral analysis and properties of circle to compute normal.
 
 # The ray object containing all ray properties and methods
 
@@ -57,7 +57,7 @@ class Ray:
         
         
 
-        # Finding intersections with sphere of mirror 
+        # Checking if ray intersects with any mirror
         self.points = []
         for mirror in self.mirrors:
             # Aperture Check for each mirrors
@@ -75,7 +75,7 @@ class Ray:
             pass
         else:
             if self.points != []:
-                t, mirror = min(self.points, key=lambda x: x[0])
+                t, mirror = min(self.points, key=lambda x: x[0])  # Finds point of intersection closest to ray, i.e the mirror which the ray intersects first, to prevent ghost rays
                 self.end = self.origin + t*self.direction
                 self.draw()
                 self.draw_reflection(mirror) 
@@ -93,7 +93,7 @@ class Ray:
         Delta = f**2 + g**2 - mirror.radius**2
         discriminant = 4 * (Beta**2) - 4 * Delta
         
-        if discriminant >= 0:
+        if discriminant >= 0:                           # Using Quadratic Discriminant to check for intersection
             t1 = (-2 * Beta + discriminant**0.5) / 2
             t2 = (-2 * Beta - discriminant**0.5) / 2
             valid_t = [t for t in (t1, t2) if t > 1e-5] 
@@ -108,9 +108,9 @@ class Ray:
             
             angle_deg = math.degrees(math.atan2(r[1], r[0]))
             if angle_deg < 0:
-                angle_deg += 360
+                angle_deg += 360                         # Normalizing the Angle
 
-            if mirror.centre_angle - mirror.angle/2 <= angle_deg <= mirror.centre_angle + mirror.angle/2:
+            if mirror.centre_angle - mirror.angle/2 <= angle_deg <= mirror.centre_angle + mirror.angle/2:        # Checking if ray passes through aperture or just sphere of mirror
                 return pt
         return None
         
@@ -136,7 +136,7 @@ class Ray:
             normal *= -1
         
         dot = np.dot(incident_dir, normal)
-        reflect_dir = incident_dir - 2 * dot * normal
+        reflect_dir = incident_dir - 2 * dot * normal   # Vector form of reflection, just flipping the component along the normal to maintain same angle but inverted direction.
         
         Ray(
             origin=self.end, 
