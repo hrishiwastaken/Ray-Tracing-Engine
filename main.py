@@ -15,7 +15,7 @@ def setup_axes():
     ax.set_xlim(0, 20)
     ax.set_ylim(0, 20)
     ax.grid(True, linestyle='--', alpha=0.5)
-    ax.set_title("Recursive Ray Tracing \n Left Click to move Source, Right Click to place mirror, Shift + Right Click to place inverted mirror, C to undo mirror")
+    ax.set_title("Recursive Ray Tracing \n Left Click to move Source, Right Click to place mirror, Shift + Right Click to place inverted mirror, C to undo mirror, Control + Right Click to place lens.")
 
 # Mirror Object(also acts as a Lens if modifier flag is turned on)
 class Mirror:
@@ -92,7 +92,7 @@ class Ray:
         self.direction = direction / np.linalg.norm(direction)
         self.length = 20
         self.mirrors: List[Mirror] = mirrors
-        self.bounces = bounces  #---Ray Bounce limit to prevent infinite bouncingCCCCCC
+        self.bounces = bounces  #---Ray Bounce limit to prevent infinite bouncing
         self.color = color      #---Ray Colour
         
         # Default parametric ray equation
@@ -364,9 +364,11 @@ def on_click(event):
             create_textbox(event, "Radius: ", submit_mirror)
 # Keyboard handler
 def on_key(event):
-    if event.key.lower() == "c":
+    if event.key.lower() == "c": 
         if mirrors:
-            mirrors.pop()
+            pop = mirrors.pop()
+            if pop.lens==True and mirrors[-1].lens == True:         # Remove Consecutive Mirror objects with lens modifier true to remove entire lens with one button press
+                mirrors.pop()
             draw_scene()
 
 
@@ -376,7 +378,6 @@ fig.canvas.mpl_connect("key_press_event", on_key)
 
 
 # Initial draw
-reflections: list[Ray] = np.array([])
 draw_scene()
 
 plt.show()
