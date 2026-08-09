@@ -17,7 +17,7 @@ def setup_axes():
     ax.grid(True, linestyle='--', alpha=0.5)
     ax.set_title("Recursive Ray Tracing \n Left Click to move Source, Right Click to place mirror, Shift + Right Click to place inverted mirror, C to undo mirror")
 
-
+# Mirror Object(also acts as a Lens if modifier flag is turned on)
 class Mirror:
     def __init__(self, centre, radius, aperture, facing, lens=False):
         self.centre = np.array(centre, dtype="float")
@@ -83,8 +83,6 @@ class Lens:
             )
         )
         return lens_obj
-# The mirror object containing all mirror properties     
-
 
 # The ray object containing all ray properties and methods
 
