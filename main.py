@@ -26,6 +26,7 @@ class Mirror:
         self.facing = facing   
         self.centre_angle = 0 if self.facing == 1 else 180
         self.lens = lens
+        self.is_line = False
     
     def draw(self):
         t1 = self.centre_angle - self.angle/2
@@ -42,20 +43,35 @@ class Mirror:
         return np.array(point, dtype="float") - self.centre   # Uses vectoral analysis and properties of circle to compute normal.
 # Line Segment Object
 class LineSegment:
-    def __init__(self, p1, p2, color="black", linewidth=3):
-        self.p1 = p1
-        self.p2 = p2
-        self.color = color
-        self.lw = linewidth
-        self.lens = False
+    def __init__(self, origin, length, direction,lens=False):
+        self.origin = origin
+        self.length = length
+        self.color = "black"
+        self.lw = 3
+        self.lens = lens
+        self.is_line = True
+        self.length = length
+        self.direction = direction      
+        self.end = self.origin + self.length*self.direction
         # Dummy attributes
         self.centre = np.array([0.0, 0.0])
         self.radius = 0.0
         self.angle = 0
         self.centre_angle = 0
-    
+
     def draw(self):
-        ax.plot([self.p1[0], self.p2[0]], [self.p1[1], self.p2[1]], color=self.color, lw=self.lw)
+        ax.plot(
+                    [self.origin[0], self.end[0]],
+                    [self.origin[1], self.end[1]],
+                    color=self.color,
+                    alpha=0.8,
+                    linewidth=self.lw,
+                    zorder=3
+                )
+
+    def normal(self):
+        return np.array([-self.direction[1], self.direction[0]],dtype="float")
+
 
 # The Lens Object( Uses Mirrors as a helper class )
 class Lens:
@@ -66,10 +82,12 @@ class Lens:
         self.thickness = thickness
         # Distance between centres of circles
         self.D = self.r1 + self.r2 - self.thickness
-        self.a = ((self.D) ** 2 + (self.r1) ** 2 - (self.r2) ** 2) / (
-            2 * self.D
-        )
-        self.b = self.D - self.a
+        if self.D <= 0:
+            self.a = self.r1
+            self.b = self.r2
+        else:
+            self.a = ((self.D) ** 2 + (self.r1) ** 2 - (self.r2) ** 2) / (2 * self.D)
+            self.b = self.D - self.a
 
         self.h = (abs((self.r1) ** 2 - self.a**2)) ** 0.5
         self.phi = math.degrees(2 * math.atan2(self.h, self.a))
@@ -134,12 +152,14 @@ class Lens:
             d2 = np.array([-math.cos(theita_rad/2), math.sin(theita_rad/2)])
             p1t = c1 + d1*self.r1
             p2t = c2 + d2*self.r2
-            lens_obj.append(LineSegment(p1t, p2t))
+            distance = np.linalg.norm(p2t-p1t)
+            lens_obj.append(LineSegment(p1t, distance, np.array([1,0]),lens=True))
             d1[1] *= -1
             d2[1] *= -1
             p1b = c1 + d1*self.r1
             p2b = c2 + d2*self.r2
-            lens_obj.append(LineSegment(p1b, p2b))
+            distance = np.linalg.norm(p2b-p1b)
+            lens_obj.append(LineSegment(p1b, distance, np.array([1,0]),lens=True))
             return lens_obj
             
 
@@ -189,6 +209,26 @@ class Ray:
                 
     # Quadratic Solver to find points of intersection
     def nature(self, mirror):
+        if mirror.is_line:
+            p1 = self.origin
+            p2 = mirror.end
+            delX = p2[0] - p1[0]; delY = p2[1] - p1[1]
+            phi = math.atan2(mirror.direction[1], mirror.direction[0])
+            theita = math.atan2(self.direction[1], self.direction[0])
+            denom = math.sin(phi - theita)
+            if abs(denom) < 1e-10:
+                return []
+            t = (delX*math.sin(phi) -delY*math.cos(phi))/denom
+            if t <= 1e-5:
+                return []
+
+            intersection = self.origin + t*self.direction
+            segmentV = p2 - mirror.origin
+            intersectionV = intersection - mirror.origin
+            projection = np.dot(intersectionV, segmentV)
+            if 0 <= projection <= np.dot(segmentV, segmentV):
+                return [t]
+            return []
         f = self.origin[0] - mirror.centre[0]
         g = self.origin[1] - mirror.centre[1]
         
@@ -205,6 +245,8 @@ class Ray:
         
     # Aperture Check function by checking parametric co-ordinate of circle range
     def parameter(self, pts, mirror):
+            if mirror.is_line:
+                return pts[0] if pts else None
             for pt in pts:
                 intersection_point = self.origin + pt * self.direction
                 r = intersection_point - mirror.centre
@@ -231,7 +273,10 @@ class Ray:
     # Drawing Reflected Rays with recursive reflections
     def draw_reflection_or_refraction(self, mirror):
         incident_dir = self.direction
-        normal = mirror.normal(self.end)
+        if mirror.is_line:
+            normal = mirror.normal()
+        else:
+            normal = mirror.normal(self.end)
         normal /= np.linalg.norm(normal)
 
         # Standard Mirror Reflection
@@ -326,7 +371,7 @@ def draw_scene():
     Source(
         origin=source_pos,
         mirrors=mirrors,
-        rays=50
+        rays=100
     )
 
     ax.legend(loc="upper right")
