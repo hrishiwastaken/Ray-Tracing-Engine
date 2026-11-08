@@ -19,28 +19,41 @@ def setup_axes():
 
 # Mirror Object(also acts as a Lens if modifier flag is turned on)
 class Mirror:
-    def __init__(self, centre, radius, aperture, facing, lens=False):
-        self.centre = np.array(centre, dtype="float")
-        self.radius = radius
-        self.angle = aperture    
-        self.facing = facing   
-        self.centre_angle = 0 if self.facing == 1 else 180
-        self.lens = lens
-        self.is_line = False
-    
+    def __init__(self, centre, parameter, boundary, facing,conic,lens=False):
+        self.conic = conic
+        if (self.conic == "circle"):
+            self.centre = np.array(centre, dtype="float")
+            self.radius = parameter
+            self.angle = boundary  
+            self.facing = facing   
+            self.centre_angle = 0 if self.facing == 1 else 180
+            self.lens = lens
+            self.is_line = False
+        elif (self.conic == "parabola"):
+            self.vertex = np.aray(centre,dtype="float")
+            self.focus = parameter
+            self.parameter = parameter
+            self.facing = facing
+            self.centre_angle = 0 if self.facing == 1 else 180
+            self.lens = lens
+            self.is_line = False
+        
     def draw(self):
-        t1 = self.centre_angle - self.angle/2
-        t2 = self.centre_angle + self.angle/2        
-        arc = Arc(
-            tuple(self.centre), width=2*self.radius, height=2*self.radius,
-            angle=0, theta1=t1,theta2=t2,
-            linewidth=3, color='black'
-        )
-        ax.add_patch(arc)
+        if (self.conic == "circle"):
+            t1 = self.centre_angle - self.angle/2
+            t2 = self.centre_angle + self.angle/2   
+            arc = Arc(
+                tuple(self.centre), width=2*self.radius, height=2*self.radius,
+                angle=0, theta1=t1,theta2=t2,
+                linewidth=3, color='black'
+            )
+            ax.add_patch(arc)
+        elif self.conic == "parabola":
+            pass
 
-  
     def normal(self, point) -> np.ndarray:
-        return np.array(point, dtype="float") - self.centre   # Uses vectoral analysis and properties of circle to compute normal.
+        if (self.conic == "circle"):
+            return np.array(point, dtype="float") - self.centre   # Uses vectoral analysis and properties of circle to compute normal.
 # Line Segment Object
 class LineSegment:
     def __init__(self, origin, length, direction,lens=False):
@@ -75,51 +88,66 @@ class LineSegment:
 
 # The Lens Object( Uses Mirrors as a helper class )
 class Lens:
-    def __init__(self, origin, radius1, radius2, thickness):
+    def __init__(self, origin, param1, param2, thickness,conic):
         self.origin = np.array(origin, dtype="float")
-        self.r1 = radius1
-        self.r2 = radius2
         self.thickness = thickness
-        # Distance between centres of circles
-        self.D = self.r1 + self.r2 - self.thickness
-        if self.D <= 0:
-            self.a = self.r1
-            self.b = self.r2
-        else:
-            self.a = ((self.D) ** 2 + (self.r1) ** 2 - (self.r2) ** 2) / (2 * self.D)
-            self.b = self.D - self.a
+        self.conic = conic
+        if self.conic == "circle":
+            self.r1 = param1
+            self.r2 = param2
+        elif self.conic == "parabola":
+            self.f1 = param1                 # Ik this seems redundant, but i prefer it this way, bite me.
+            self.f2 = param2
+        if (self.conic == "circle"): 
+            # Distance between centres of circles
+            self.D = self.r1 + self.r2 - self.thickness
+            if self.D <= 0:
+                self.a = self.r1
+                self.b = self.r2
+            else:
+                self.a = ((self.D) ** 2 + (self.r1) ** 2 - (self.r2) ** 2) / (2 * self.D)
+                self.b = self.D - self.a
 
-        self.h = (abs((self.r1) ** 2 - self.a**2)) ** 0.5
-        self.phi = math.degrees(2 * math.atan2(self.h, self.a))
-        self.theita = math.degrees(2 * math.atan2(self.h, self.b))
+            self.h = (abs((self.r1) ** 2 - self.a**2)) ** 0.5
+            self.phi = math.degrees(2 * math.atan2(self.h, self.a))
+            self.theita = math.degrees(2 * math.atan2(self.h, self.b))
+        elif self.conic == "parabola":
+            intersection_factor = (self.origin[0] + (self.thickness/2)*((self.f1-self.f2)/self.f1+self.f2))**0.5
+            self.t1 = [-(self.f1**(-0.5)*intersection_factor),(self.f1**(-0.5)*intersection_factor)]
+            self.t2 = [-(self.f2**(-0.5)*intersection_factor),(self.f2**(-0.5)*intersection_factor)]      
+             
 
     def draw_convex(self):
         lens_obj = []
-        i1 = self.a * np.array([1.0, 0.0])
-        i2 = self.b * np.array([1.0, 0.0])
-        # Surface 1 (Left surface: bulges left towards source)
-        lens_obj.append(
-            Mirror(
-                centre=self.origin + i1,
-                radius=self.r1,
-                aperture=self.phi,
-                facing=-1,
-                lens=True,
+        if self.conic == "circle":     
+            i1 = self.a * np.array([1.0, 0.0])
+            i2 = self.b * np.array([1.0, 0.0])
+            # Surface 1 (Left surface: bulges left towards source)
+            lens_obj.append(
+                Mirror(
+                    centre=self.origin + i1,
+                    radius=self.r1,
+                    aperture=self.phi,
+                    facing=-1,
+                    lens=True,
+                )
             )
-        )
-        # Surface 2 (Right surface: bulges right away from source)
-        lens_obj.append(
-            Mirror(
-                centre=self.origin - i2,
-                radius=self.r2,
-                aperture=self.theita,
-                facing=1,
-                lens=True,
+            # Surface 2 (Right surface: bulges right away from source)
+            lens_obj.append(
+                Mirror(
+                    centre=self.origin - i2,
+                    radius=self.r2,
+                    aperture=self.theita,
+                    facing=1,
+                    lens=True,
+                )
             )
-        )
-        return lens_obj
+            return lens_obj
+        elif self.conic == "parabola":
+            pass
 
     def draw_biconcave(self):
+        if (self.conic == "circle"):
             lens_obj = []
             i1 = (self.a+self.thickness) * np.array([1.0, 0.0])
             i2 = (self.b+self.thickness) * np.array([1.0, 0.0])
@@ -492,7 +520,7 @@ def on_key(event):
     if event.key.lower() == "c": 
         if mirrors:
             pop = mirrors.pop()
-            if pop.lens==True and mirrors[-1].lens == True:         # Remove Consecutive Mirror objects with lens modifier true to remove entire lens with one button press
+            while pop.lens==True and mirrors[-1].lens == True:         # Remove Consecutive Mirror objects with lens modifier true to remove entire lens with one button press
                 mirrors.pop()
             draw_scene()
 
